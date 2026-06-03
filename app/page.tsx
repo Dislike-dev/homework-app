@@ -18,14 +18,17 @@ export default function Home() {
   const [friendEmail, setFriendEmail] = useState("");
   const [friendTasks, setFriendTasks] = useState<Task[]>([]);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user as unknown as User ?? null);
-    });
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user as unknown as User ?? null);
-    });
-  }, []);
+ useEffect(() => {
+  supabase.auth.getSession().then(({ data }) => {
+    setUser(data.session?.user as unknown as User ?? null);
+  });
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user as unknown as User ?? null);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   useEffect(() => {
     if (!user) return;
