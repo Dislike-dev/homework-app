@@ -94,13 +94,29 @@ export default function Home() {
   };
 
   const loadFriendTasks = async () => {
-    if (!friendEmail.trim()) return;
-    const { data: profile } = await supabase.from("profiles").select("id").eq("email", friendEmail).single();
-    if (!profile) { alert("ไม่พบผู้ใช้นี้ครับ"); return; }
-    const { data } = await supabase.from("tasks").select("*").eq("user_id", profile.id).order("created_at", { ascending: false });
-    setFriendTasks(data || []);
-  };
-
+  if (!friendEmail.trim()) return;
+  
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", friendEmail.trim())
+    .single();
+  
+  console.log("profile:", profile, "error:", profileError);
+  
+  if (!profile) { 
+    alert("ไม่พบผู้ใช้นี้ครับ email: " + friendEmail); 
+    return; 
+  }
+  
+  const { data, error: taskError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("user_id", profile.id);
+    
+  console.log("tasks:", data, "error:", taskError);
+  setFriendTasks(data || []);
+};
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split("T")[0];
