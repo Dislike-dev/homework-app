@@ -29,7 +29,17 @@ export default function Home() {
 
   return () => subscription.unsubscribe();
 }, []);
-
+useEffect(() => {
+  const hash = window.location.hash;
+  if (hash && hash.includes("access_token")) {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setUser(data.session.user as unknown as User);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    });
+  }
+}, []);
   useEffect(() => {
     if (!user) return;
     loadTasks();
