@@ -95,26 +95,36 @@ export default function Home() {
 
   const loadFriendTasks = async () => {
   if (!friendEmail.trim()) return;
-  
+
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id")
     .eq("email", friendEmail.trim())
-    .single();
-  
-  console.log("profile:", profile, "error:", profileError);
-  
-  if (!profile) { 
-    alert("ไม่พบผู้ใช้นี้ครับ email: " + friendEmail); 
-    return; 
+    .maybeSingle();
+
+  console.log("PROFILE =", profile);
+  console.log("PROFILE ERROR =", profileError);
+
+  if (!profile?.id) {
+    alert("ไม่พบผู้ใช้");
+    return;
   }
-  
-  const { data, error: taskError } = await supabase
+
+  console.log("USER ID =", profile.id);
+
+  const { data, error } = await supabase
     .from("tasks")
     .select("*")
     .eq("user_id", profile.id);
-    
-  console.log("tasks:", data, "error:", taskError);
+
+  console.log("TASKS =", data);
+  console.log("TASK ERROR =", error);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
   setFriendTasks(data || []);
 };
   const tomorrow = new Date();
