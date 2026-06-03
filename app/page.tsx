@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Task = { id: string; title: string; subject: string; due: string; done: boolean; user_id: string; };
-type User = { id: string; email: string; user_metadata: { full_name: string; avatar_url: string; }; };
+type User = { id: string; email: string; user_metadata: any; };
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,29 +17,42 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<"mine" | "friends">("mine");
   const [friendEmail, setFriendEmail] = useState("");
   const [friendTasks, setFriendTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
 
- useEffect(() => {
-  supabase.auth.getSession().then(({ data }) => {
-    setUser(data.session?.user as unknown as User ?? null);
-  });
-
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user as unknown as User ?? null);
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
-useEffect(() => {
-  const hash = window.location.hash;
-  if (hash && hash.includes("access_token")) {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setUser(data.session.user as unknown as User);
-        window.history.replaceState({}, document.title, window.location.pathname);
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data }) => {
+      const u = data.session?.user as unknown as User ?? null;
+      setUser(u);
+      if (u) {
+        await supabase.from("profiles").upsert({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name });
       }
+      setLoading(false);
     });
-  }
-}, []);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user as unknown as User ?? null;
+      setUser(u);
+      if (u) {
+        await supabase.from("profiles").upsert({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name });
+      }
+      setLoading(false);
+    });
+
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      supabase.auth.getSession().then(async ({ data }) => {
+        if (data.session) {
+          const u = data.session.user as unknown as User;
+          setUser(u);
+          await supabase.from("profiles").upsert({ id: u.id, email: u.email, full_name: u.user_metadata?.full_name });
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      });
+    }
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     loadTasks();
@@ -82,8 +95,10 @@ useEffect(() => {
 
   const loadFriendTasks = async () => {
     if (!friendEmail.trim()) return;
-    const { data: users } = await supabase.from("tasks").select("*").eq("user_id", friendEmail);
-    setFriendTasks(users || []);
+    const { data: profile } = await supabase.from("profiles").select("id").eq("email", friendEmail).single();
+    if (!profile) { alert("ไม่พบผู้ใช้นี้ครับ"); return; }
+    const { data } = await supabase.from("tasks").select("*").eq("user_id", profile.id).order("created_at", { ascending: false });
+    setFriendTasks(data || []);
   };
 
   const tomorrow = new Date();
@@ -97,6 +112,8 @@ useEffect(() => {
     return true;
   });
 
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">กำลังโหลด...</div>;
+
   if (!user) return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
       <h1 className="text-3xl font-bold">การบ้านของฉัน</h1>
@@ -108,7 +125,7 @@ useEffect(() => {
     <main className="min-h-screen bg-black text-white p-6">
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">สวัสดี {user.user_metadata.full_name}!</h1>
+          <h1 className="text-2xl font-bold">สวัสดี {user.user_metadata?.full_name}!</h1>
           <button onClick={logout} className="bg-red-600 px-4 py-2 rounded-xl text-sm">Logout</button>
         </div>
 
@@ -124,11 +141,12 @@ useEffect(() => {
               <button onClick={loadFriendTasks} className="bg-blue-600 px-4 py-2 rounded-xl text-sm">ค้นหา</button>
             </div>
             <div className="flex flex-col gap-2">
-              {friendTasks.length === 0 && <p className="text-center text-zinc-500 py-8">ยังไม่มีข้อมูล</p>}
+              {friendTasks.length === 0 && <p className="text-center text-zinc-500 py-8">ใส่ email เพื่อนแล้วกดค้นหาครับ</p>}
               {friendTasks.map((task) => (
                 <div key={task.id} className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 ${task.done ? "opacity-50" : ""}`}>
                   <p className={`font-medium ${task.done ? "line-through" : ""}`}>{task.title}</p>
                   <p className="text-zinc-400 text-sm">{task.subject} {task.due && `· ${task.due}`}</p>
+                  {task.done && <span className="text-green-400 text-xs">✓ เสร็จแล้ว</span>}
                 </div>
               ))}
             </div>
